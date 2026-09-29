@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة المقارنة الذكية للمطابقة وفرز البيانات</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts (Cairo for Arabic) -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- SheetJS for Excel processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#1e3a8a',
+                        secondary: '#3b82f6',
+                        accent: '#f59e0b',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Print Styles for PDF Export */
+        @media print {
+            @page { size: landscape; margin: 1cm; }
+            body { background: white !important; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            table { page-break-inside: auto; width: 100%; border-collapse: collapse; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            th, td { border: 1px solid #ddd; padding: 4px; font-size: 10px; }
+            .shadow-lg, .shadow-md { box-shadow: none !important; }
+            input, select { border: none !important; appearance: none; -webkit-appearance: none; background: transparent; width: auto; font-size: 10px; text-align: center; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm border-b border-slate-200 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <div onclick="resetApp()" class="flex items-center gap-3 cursor-pointer group">
+                <div class="bg-primary text-white p-2 rounded-lg flex items-center justify-center group-hover:bg-blue-900 transition-colors">
+                    <i class="fa-solid fa-code-compare text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-primary group-hover:underline">منصة المقارنة الذكية</h1>
+                    <p class="text-xs text-slate-500">لفرز القوائم واكتشاف المتكرر والمشابه وجلب كافة البيانات</p>
+                </div>
+            </div>
+            <div>
+                <span class="text-xs bg-blue-50 text-primary font-semibold px-3 py-1.5 rounded-lg border border-blue-100">
+                    <i class="fa-solid fa-shield-halved ml-1"></i> معالجة محلية آمنة
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        
+        <section id="input-section" class="space-y-6 no-print">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-file-import text-secondary"></i> إدخال البيانات ومقارنة الملفات المستقلة
+                </h2>
+                
+                <!-- Tabs -->
+                <div class="flex border-b border-slate-200 mb-6">
+                    <button onclick="switchTab('file')" id="tab-file" class="px-4 py-2 border-b-2 border-primary text-primary font-semibold flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-file-excel"></i> إرفاق ملفين Excel (مستقلين)
+                    </button>
+                    <button onclick="switchTab('text')" id="tab-text" class="px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-paste"></i> نسخ ولصق (نصوص)
+                    </button>
+                </div>
+
+                <!-- File Input Area (Two Separate Files) -->
+                <div id="area-file" class="block space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- File 1 Box -->
+                        <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center bg-slate-50 hover:bg-slate-100 transition-colors relative cursor-pointer" onclick="document.getElementById('excel-file-1').click()">
+                            <input type="file" id="excel-file-1" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload1(event)">
+                            <div class="space-y-2">
+                                <i class="fa-solid fa-file-arrow-up text-3xl text-primary"></i>
+                                <p class="text-slate-700 font-bold text-sm">ملف القائمة الأولى</p>
+                                <p class="text-xs text-slate-500" id="file-1-name">اضغط لاختيار ملف Excel الأول</p>
+                            </div>
+                        </div>
+
+                        <!-- File 2 Box -->
+                        <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center bg-slate-50 hover:bg-slate-100 transition-colors relative cursor-pointer" onclick="document.getElementById('excel-file-2').click()">
+                            <input type="file" id="excel-file-2" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload2(event)">
+                            <div class="space-y-2">
+                                <i class="fa-solid fa-file-arrow-up text-3xl text-secondary"></i>
+                                <p class="text-slate-700 font-bold text-sm">ملف القائمة الثانية</p>
+                                <p class="text-xs text-slate-500" id="file-2-name">اضغط لاختيار ملف Excel الثاني</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column Selectors for Both Files -->
+                    <div id="column-selectors" class="hidden bg-white p-5 rounded-xl border border-slate-200 shadow-sm animate-fade-in space-y-4">
+                        <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <i class="fa-solid fa-table-columns text-primary"></i> تحديد عمود الأسماء والبحث في كل ملف:
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-2">عمود الأسماء في (الملف الأول):</label>
+                                <select id="select-col1" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary bg-slate-50" onchange="updateFileCounts()"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-2">عمود الأسماء في (الملف الثاني):</label>
+                                <select id="select-col2" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary bg-slate-50" onchange="updateFileCounts()"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="file-status" class="hidden text-sm font-semibold p-4 rounded-xl bg-green-50 text-green-700 border border-green-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-check-circle text-lg"></i> <span id="file-status-text">تم قراءة الملفات بنجاح وجلب كافة البيانات المرتبطة</span>
+                        </div>
+                        <div class="flex gap-3 text-xs">
+                            <span class="bg-white px-3 py-1.5 rounded-lg border border-green-200 shadow-sm">عدد الملف الأول: <b id="count-file-col1" class="text-lg">0</b></span>
+                            <span class="bg-white px-3 py-1.5 rounded-lg border border-green-200 shadow-sm">عدد الملف الثاني: <b id="count-file-col2" class="text-lg">0</b></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Text Input Area -->
+                <div id="area-text" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-semibold text-slate-700">القائمة الأولى (العمود الأول)</label>
+                                <span class="text-xs font-bold text-slate-600 bg-slate-200 px-2.5 py-1 rounded-md">العدد: <span id="count-text-col1">0</span></span>
+                            </div>
+                            <textarea id="text-col1" rows="8" class="w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-secondary outline-none text-sm" placeholder="الصق الأسماء هنا (اسم في كل سطر)..." oninput="updateTextCounts()"></textarea>
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-semibold text-slate-700">القائمة الثانية (العمود الثاني)</label>
+                                <span class="text-xs font-bold text-slate-600 bg-slate-200 px-2.5 py-1 rounded-md">العدد: <span id="count-text-col2">0</span></span>
+                            </div>
+                            <textarea id="text-col2" rows="8" class="w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-secondary outline-none text-sm" placeholder="الصق الأسماء هنا (اسم في كل سطر)..." oninput="updateTextCounts()"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <button onclick="startComparison()" class="bg-primary hover:bg-blue-900 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-transform transform hover:scale-105 flex items-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> بدء المقارنة وجلب كافة البيانات
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="results-section" class="hidden space-y-6 mt-8">
+            
+            <!-- Statistics Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 no-print">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-center items-center text-center">
+                    <span class="text-3xl font-bold text-slate-700" id="stat-total">0</span>
+                    <span class="text-sm text-slate-500 font-semibold mt-1">إجمالي الأسماء المعالجة</span>
+                </div>
+                <div class="bg-green-50 p-4 rounded-xl shadow-sm border border-green-200 flex flex-col justify-center items-center text-center">
+                    <span class="text-3xl font-bold text-green-600" id="stat-exact">0</span>
+                    <span class="text-sm text-green-700 font-semibold mt-1">تطابق تام</span>
+                </div>
+                <div class="bg-yellow-50 p-4 rounded-xl shadow-sm border border-yellow-200 flex flex-col justify-center items-center text-center">
+                    <span class="text-3xl font-bold text-yellow-600" id="stat-similar">0</span>
+                    <span class="text-sm text-yellow-700 font-semibold mt-1">تشابه / اختلاف بالصياغة</span>
+                </div>
+                <div class="bg-red-50 p-4 rounded-xl shadow-sm border border-red-200 flex flex-col justify-center items-center text-center">
+                    <span class="text-3xl font-bold text-red-600" id="stat-missing">0</span>
+                    <span class="text-sm text-red-700 font-semibold mt-1">أسماء زائدة / لم يعثر عليها</span>
+                </div>
+            </div>
+
+            <!-- Toolbar (Search, Batch Classification & Export) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col lg:flex-row justify-between items-center gap-4 no-print">
+                <div class="relative w-full lg:w-1/3 flex items-center gap-2">
+                    <div class="relative w-full">
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-search text-slate-400"></i>
+                        </div>
+                        <input type="text" id="search-input" onkeyup="filterTable()" class="block w-full pr-10 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-secondary outline-none text-sm" placeholder="ابحث عن اسم، حالة التطابق، بيانات إضافية...">
+                    </div>
+                    <button onclick="filterTable()" class="bg-primary hover:bg-blue-900 text-white px-4 py-2.5 rounded-lg text-sm font-bold flex items-center gap-1.5 shadow-sm transition-colors whitespace-nowrap">
+                        <i class="fa-solid fa-search"></i> بحث
+                    </button>
+                </div>
+
+                <!-- Batch Classification Action Buttons -->
+                <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                    <span class="text-xs font-bold text-slate-500 ml-1">تحديد المحدد كـ:</span>
+                    <button onclick="setBatchClassification('حماية')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors">
+                        <i class="fa-solid fa-shield"></i> حماية
+                    </button>
+                    <button onclick="setBatchClassification('غير حماية')" class="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors">
+                        <i class="fa-solid fa-shield-slash"></i> غير حماية
+                    </button>
+                    <button onclick="setBatchClassification('كاش')" class="bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors">
+                        <i class="fa-solid fa-money-bill-wave"></i> كاش
+                    </button>
+                </div>
+                
+                <div class="flex gap-2 w-full lg:w-auto">
+                    <button onclick="exportExcel()" class="flex-1 lg:flex-none bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
+                        <i class="fa-solid fa-file-excel"></i> تصدير Excel
+                    </button>
+                    <button onclick="exportPDF()" class="flex-1 lg:flex-none bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
+                        <i class="fa-solid fa-file-pdf"></i> تصدير PDF
+                    </button>
+                    <button onclick="resetApp()" class="flex-1 lg:flex-none bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
+                        <i class="fa-solid fa-rotate-right"></i> إعادة ضبط
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alphabetical Filter (التجميع الأبجدي) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 no-print overflow-x-auto hidden" id="alphabet-filter-wrapper">
+                <div class="flex items-center gap-2 min-w-max pb-1" id="alphabet-filter-container"></div>
+            </div>
+
+            <!-- Print Header -->
+            <div class="hidden print-only mb-6">
+                <h2 class="text-2xl font-bold text-center mb-2">تقرير مطابقة البيانات والرواتب</h2>
+                <div class="flex justify-between border-b-2 border-black pb-2 text-sm font-semibold">
+                    <span>التاريخ: <span id="print-date"></span></span>
+                    <span>النتائج المستخرجة عبر منصة المقارنة الذكية</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right whitespace-nowrap" id="results-table">
+                        <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-sm">
+                            <tr>
+                                <th class="p-4 w-12 text-center">
+                                    <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)" class="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary cursor-pointer">
+                                </th>
+                                <th class="p-4 w-16 text-center">#</th>
+                                <th class="p-4 min-w-[200px]">الاسم في القائمة الأولى</th>
+                                <th class="p-4 min-w-[200px]">المقابل في القائمة الثانية</th>
+                                <th class="p-4 min-w-[220px]">بيانات إضافية مجلوبة (الملف الأول)</th>
+                                <th class="p-4 min-w-[220px]">بيانات إضافية مجلوبة (الملف الثاني)</th>
+                                <th class="p-4 min-w-[150px]">حالة التطابق</th>
+                                <th class="p-4 min-w-[130px]">التصنيف</th>
+                                <th class="p-4 min-w-[100px]">الراتب الأساسي</th>
+                                <th class="p-4 min-w-[100px]">علاوة سكن (25%)</th>
+                                <th class="p-4 min-w-[100px]">علاوة نقل</th>
+                                <th class="p-4 min-w-[120px]">الإيرادات الأخرى</th>
+                                <th class="p-4 min-w-[120px]">تعديل أيام (+)</th>
+                                <th class="p-4 min-w-[100px]">القروض</th>
+                                <th class="p-4 min-w-[120px]">تعديل أيام (-)</th>
+                                <th class="p-4 min-w-[120px]">الضمان الإجتماعي</th>
+                                <th class="p-4 min-w-[150px]">فروقات الضمان للموظف</th>
+                                <th class="p-4 min-w-[120px]">مجموع الإقتطاعات</th>
+                                <th class="p-4 min-w-[150px]">ضمان الموظف</th>
+                                <th class="p-4 min-w-[120px]">صافي الراتب</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-slate-200 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="no-results" class="hidden text-center py-12 bg-white rounded-xl shadow-sm border border-slate-200 no-print">
+                <i class="fa-solid fa-magnifying-glass text-4xl text-slate-300 mb-3"></i>
+                <h3 class="text-lg font-semibold text-slate-700">لا توجد نتائج مطابقة لبحثك</h3>
+                <p class="text-slate-500">جرب البحث بكلمات مختلفة أو حرف آخر.</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let file1Data = [];
+        let file2Data = [];
+        let file1Headers = [];
+        let file2Headers = [];
+        
+        let comparisonResults = [];
+        let currentTab = 'file';
+        let activeLetter = 'all';
+
+        document.getElementById('print-date').innerText = new Date().toLocaleDateString('ar-SA');
+
+        function switchTab(tab) {
+            currentTab = tab;
+            if (tab === 'file') {
+                document.getElementById('area-file').classList.remove('hidden');
+                document.getElementById('area-text').classList.add('hidden');
+                document.getElementById('tab-file').className = 'px-4 py-2 border-b-2 border-primary text-primary font-semibold flex items-center gap-2 transition-colors';
+                document.getElementById('tab-text').className = 'px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-2 transition-colors';
+            } else {
+                document.getElementById('area-file').classList.add('hidden');
+                document.getElementById('area-text').classList.remove('hidden');
+                document.getElementById('tab-text').className = 'px-4 py-2 border-b-2 border-primary text-primary font-semibold flex items-center gap-2 transition-colors';
+                document.getElementById('tab-file').className = 'px-4 py-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-semibold flex items-center gap-2 transition-colors';
+            }
+        }
+
+        // File 1 Upload Handler
+        function handleFileUpload1(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            document.getElementById('file-1-name').innerText = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                file1Data = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                
+                if (file1Data.length > 0) {
+                    file1Headers = file1Data[0].map((h, i) => (h && String(h).trim() !== '') ? String(h).trim() : `العمود ${i+1}`);
+                    const sel1 = document.getElementById('select-col1');
+                    sel1.innerHTML = '';
+                    file1Headers.forEach((h, idx) => {
+                        sel1.innerHTML += `<option value="${idx}">${h}</option>`;
+                    });
+                }
+                checkBothFilesLoaded();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // File 2 Upload Handler
+        function handleFileUpload2(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            document.getElementById('file-2-name').innerText = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                file2Data = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                
+                if (file2Data.length > 0) {
+                    file2Headers = file2Data[0].map((h, i) => (h && String(h).trim() !== '') ? String(h).trim() : `العمود ${i+1}`);
+                    const sel2 = document.getElementById('select-col2');
+                    sel2.innerHTML = '';
+                    file2Headers.forEach((h, idx) => {
+                        sel2.innerHTML += `<option value="${idx}">${h}</option>`;
+                    });
+                }
+                checkBothFilesLoaded();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function checkBothFilesLoaded() {
+            if (file1Data.length > 0 && file2Data.length > 0) {
+                document.getElementById('column-selectors').classList.remove('hidden');
+                updateFileCounts();
+            }
+        }
+
+        function updateFileCounts() {
+            const idx1 = parseInt(document.getElementById('select-col1').value) || 0;
+            const idx2 = parseInt(document.getElementById('select-col2').value) || 0;
+            
+            let c1 = 0, c2 = 0;
+            for(let i=1; i<file1Data.length; i++) {
+                if (file1Data[i][idx1] !== undefined && String(file1Data[i][idx1]).trim() !== '') c1++;
+            }
+            for(let i=1; i<file2Data.length; i++) {
+                if (file2Data[i][idx2] !== undefined && String(file2Data[i][idx2]).trim() !== '') c2++;
+            }
+            
+            document.getElementById('file-status').classList.remove('hidden');
+            document.getElementById('count-file-col1').innerText = c1;
+            document.getElementById('count-file-col2').innerText = c2;
+        }
+
+        function updateTextCounts() {
+            const t1 = document.getElementById('text-col1').value;
+            const t2 = document.getElementById('text-col2').value;
+            document.getElementById('count-text-col1').innerText = t1.split('\n').filter(s => s.trim() !== '').length;
+            document.getElementById('count-text-col2').innerText = t2.split('\n').filter(s => s.trim() !== '').length;
+        }
+
+        function normalizeString(str) {
+            if (!str) return '';
+            let s = str.trim().replace(/\s+/g, ' ');
+            s = s.replace(/[أإآا]/g, 'ا');
+            s = s.replace(/ة/g, 'ه');
+            s = s.replace(/ى/g, 'ي');
+            return s;
+        }
+
+        function getBigrams(str) {
+            const bigrams = [];
+            for (let i = 0; i < str.length - 1; i++) {
+                bigrams.push(str.slice(i, i + 2));
+            }
+            return bigrams;
+        }
+
+        function calculateSimilarity(str1, str2) {
+            if (str1 === str2) return 1.0;
+            const bg1 = getBigrams(str1);
+            const bg2 = getBigrams(str2);
+            if (bg1.length === 0 || bg2.length === 0) return 0.0;
+            let intersection = 0;
+            let bg2_copy = [...bg2];
+            for (let i = 0; i < bg1.length; i++) {
+                const matchIdx = bg2_copy.indexOf(bg1[i]);
+                if (matchIdx !== -1) {
+                    intersection++;
+                    bg2_copy.splice(matchIdx, 1);
+                }
+            }
+            return (2.0 * intersection) / (bg1.length + bg2.length);
+        }
+
+        function formatRowDetails(rowArray, headers) {
+            if (!rowArray || rowArray.length === 0) return '';
+            let details = [];
+            for(let i = 0; i < rowArray.length; i++) {
+                if (rowArray[i] !== undefined && rowArray[i] !== null && String(rowArray[i]).trim() !== '') {
+                    let hName = headers && headers[i] ? headers[i] : `ع${i+1}`;
+                    details.push(`${hName}: ${rowArray[i]}`);
+                }
+            }
+            return details.join(' | ');
+        }
+
+        function startComparison() {
+            let items1 = []; 
+            let items2 = [];
+
+            if (currentTab === 'text') {
+                const t1 = document.getElementById('text-col1').value;
+                const t2 = document.getElementById('text-col2').value;
+                items1 = t1.split('\n').map(s => s.trim()).filter(s => s !== '').map(name => ({name, fullRow: [name]}));
+                items2 = t2.split('\n').map(s => s.trim()).filter(s => s !== '').map(name => ({name, fullRow: [name]}));
+            } else {
+                if (file1Data.length === 0 || file2Data.length === 0) {
+                    alert("يرجى إرفاق كلا الملفين أولاً.");
+                    return;
+                }
+                const idx1 = parseInt(document.getElementById('select-col1').value) || 0;
+                const idx2 = parseInt(document.getElementById('select-col2').value) || 0;
+
+                for (let i = 1; i < file1Data.length; i++) {
+                    const row = file1Data[i];
+                    if (row[idx1] !== undefined && String(row[idx1]).trim() !== '') {
+                        items1.push({ name: String(row[idx1]).trim(), fullRow: row });
+                    }
+                }
+                for (let i = 1; i < file2Data.length; i++) {
+                    const row = file2Data[i];
+                    if (row[idx2] !== undefined && String(row[idx2]).trim() !== '') {
+                        items2.push({ name: String(row[idx2]).trim(), fullRow: row });
+                    }
+                }
+            }
+
+            if (items1.length === 0 && items2.length === 0) {
+                alert("لا توجد بيانات للمقارنة.");
+                return;
+            }
+
+            comparisonResults = [];
+            let availList2 = [...items2];
+            
+            let countExact = 0;
+            let countSimilar = 0;
+            let countMissing = 0;
+
+            // Step 1: Exact Match
+            let remaining1 = [];
+            for (let i = 0; i < items1.length; i++) {
+                const item1 = items1[i];
+                let foundExact = false;
+                for (let j = 0; j < availList2.length; j++) {
+                    if (item1.name === availList2[j].name) {
+                        comparisonResults.push({
+                            col1: item1.name,
+                            col2: availList2[j].name,
+                            details1: formatRowDetails(item1.fullRow, file1Headers),
+                            details2: formatRowDetails(availList2[j].fullRow, file2Headers),
+                            status: 'مطابق تماماً',
+                            type: 'exact',
+                            selected: false
+                        });
+                        availList2.splice(j, 1);
+                        foundExact = true;
+                        countExact++;
+                        break;
+                    }
+                }
+                if (!foundExact) remaining1.push(item1);
+            }
+
+            // Step 2: Normalized Match
+            let remaining2 = [];
+            for (let i = 0; i < remaining1.length; i++) {
+                const item1 = remaining1[i];
+                const norm1 = normalizeString(item1.name);
+                let foundNorm = false;
+                for (let j = 0; j < availList2.length; j++) {
+                    if (normalizeString(availList2[j].name) === norm1) {
+                        comparisonResults.push({
+                            col1: item1.name,
+                            col2: availList2[j].name,
+                            details1: formatRowDetails(item1.fullRow, file1Headers),
+                            details2: formatRowDetails(availList2[j].fullRow, file2Headers),
+                            status: 'مطابق (باختلاف إملائي)',
+                            type: 'exact',
+                            selected: false
+                        });
+                        availList2.splice(j, 1);
+                        foundNorm = true;
+                        countExact++;
+                        break;
+                    }
+                }
+                if (!foundNorm) remaining2.push(item1);
+            }
+
+            // Step 3: Similarity Match
+            for (let i = 0; i < remaining2.length; i++) {
+                const item1 = remaining2[i];
+                const norm1 = normalizeString(item1.name);
+                let bestMatchObj = null;
+                let bestScore = 0;
+                let bestIndex = -1;
+
+                for (let j = 0; j < availList2.length; j++) {
+                    const norm2 = normalizeString(availList2[j].name);
+                    const score = calculateSimilarity(norm1, norm2);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMatchObj = availList2[j];
+                        bestIndex = j;
+                    }
+                }
+
+                if (bestScore > 0.5) {
+                    comparisonResults.push({
+                        col1: item1.name,
+                        col2: bestMatchObj.name,
+                        details1: formatRowDetails(item1.fullRow, file1Headers),
+                        details2: formatRowDetails(bestMatchObj.fullRow, file2Headers),
+                        status: 'تشابه في الصياغة',
+                        type: 'similar',
+                        selected: false
+                    });
+                    availList2.splice(bestIndex, 1);
+                    countSimilar++;
+                } else {
+                    comparisonResults.push({
+                        col1: item1.name,
+                        col2: '---',
+                        details1: formatRowDetails(item1.fullRow, file1Headers),
+                        details2: '---',
+                        status: 'اسم زائد (لا يوجد مقابل)',
+                        type: 'missing',
+                        selected: false
+                    });
+                    countMissing++;
+                }
+            }
+
+            // Step 4: Leftovers in List 2
+            for (let i = 0; i < availList2.length; i++) {
+                comparisonResults.push({
+                    col1: '---',
+                    col2: availList2[i].name,
+                    details1: '---',
+                    details2: formatRowDetails(availList2[i].fullRow, file2Headers),
+                    status: 'موجود في القائمة الثانية فقط',
+                    type: 'missing_col2',
+                    selected: false
+                });
+                countMissing++;
+            }
+
+            // Initialize financial & classification fields
+            comparisonResults = comparisonResults.map(row => ({
+                ...row,
+                classification: '',
+                basic_salary: '',
+                allowance_housing: '',
+                allowance_transport: '',
+                other_revenues: '',
+                salary_adj_plus: '',
+                loans: '',
+                salary_adj_minus: '',
+                social_security: '',
+                social_security_diff: '',
+                total_deductions: '',
+                employee_social_security: '',
+                net_salary: ''
+            }));
+
+            document.getElementById('stat-total').innerText = items1.length;
+            document.getElementById('stat-exact').innerText = countExact;
+            document.getElementById('stat-similar').innerText = countSimilar;
+            document.getElementById('stat-missing').innerText = countMissing;
+
+            renderTable(comparisonResults);
+            generateAlphabetFilters(comparisonResults);
+
+            document.getElementById('input-section').classList.add('hidden');
+            document.getElementById('results-section').classList.remove('hidden');
+        }
+
+        function generateAlphabetFilters(results) {
+            const letters = new Set();
+            results.forEach(row => {
+                const name = row.col1 !== '---' ? row.col1 : row.col2;
+                if (name && name.length > 0) {
+                    let firstChar = name.replace(/[^أ-ي]/g, '').charAt(0);
+                    if (['أ', 'إ', 'آ'].includes(firstChar)) firstChar = 'ا';
+                    if (firstChar) letters.add(firstChar);
+                }
+            });
+
+            const sortedLetters = Array.from(letters).sort();
+            const container = document.getElementById('alphabet-filter-container');
+            const wrapper = document.getElementById('alphabet-filter-wrapper');
+            
+            if (sortedLetters.length === 0) {
+                wrapper.classList.add('hidden');
+                return;
+            }
+            
+            wrapper.classList.remove('hidden');
+            let html = `<button onclick="filterByLetter('all')" id="btn-letter-all" class="px-4 py-1.5 rounded-lg text-sm font-bold bg-primary text-white shadow-sm transition-colors border border-primary">الكل</button>`;
+            
+            sortedLetters.forEach(l => {
+                html += `<button onclick="filterByLetter('${l}')" id="btn-letter-${l}" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-700 hover:bg-slate-100 transition-colors border border-slate-300 shadow-sm">${l}</button>`;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function filterByLetter(letter) {
+            activeLetter = letter;
+            const container = document.getElementById('alphabet-filter-container');
+            const buttons = container.querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.className = "px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-700 hover:bg-slate-100 transition-colors border border-slate-300 shadow-sm";
+            });
+            const activeBtn = letter === 'all' ? document.getElementById('btn-letter-all') : document.getElementById(`btn-letter-${letter}`);
+            if (activeBtn) {
+                activeBtn.className = "px-4 py-1.5 rounded-lg text-sm font-bold bg-primary text-white shadow-sm transition-colors border border-primary";
+            }
+            filterTable();
+        }
+
+        function updateRowData(index, field, value) {
+            comparisonResults[index][field] = value;
+            if (field === 'basic_salary' && value !== '') {
+                const basic = parseFloat(value);
+                if (!isNaN(basic)) {
+                    const housing = (basic * 0.25).toFixed(2);
+                    comparisonResults[index]['allowance_housing'] = housing;
+                    const housingInput = document.getElementById(`housing-${index}`);
+                    if (housingInput) housingInput.value = housing;
+                }
+            }
+        }
+
+        function toggleRowSelection(index, checkbox) {
+            comparisonResults[index].selected = checkbox.checked;
+        }
+
+        function toggleSelectAll(selectAllCheckbox) {
+            const isChecked = selectAllCheckbox.checked;
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = isChecked;
+                const idx = parseInt(cb.getAttribute('data-index'));
+                if (!isNaN(idx) && comparisonResults[idx]) {
+                    comparisonResults[idx].selected = isChecked;
+                }
+            });
+        }
+
+        function setBatchClassification(classificationType) {
+            let countUpdated = 0;
+            comparisonResults.forEach((row, idx) => {
+                if (row.selected) {
+                    row.classification = classificationType;
+                    countUpdated++;
+                    const selectEl = document.getElementById(`classification-select-${idx}`);
+                    if (selectEl) {
+                        selectEl.value = classificationType;
+                        updateSelectColor(selectEl, classificationType);
+                    }
+                }
+            });
+
+            if (countUpdated === 0) {
+                alert("يرجى تحديد موظف واحد على الأقل عبر مربعات الاختيار (Checkbox) في الجدول أولاً.");
+            }
+        }
+
+        function updateSelectColor(selectElement, val) {
+            selectElement.className = "w-full min-w-[110px] border rounded p-1.5 text-xs font-bold outline-none transition-colors ";
+            if (val === 'حماية') {
+                selectElement.className += "bg-emerald-100 text-emerald-800 border-emerald-300";
+            } else if (val === 'غير حماية') {
+                selectElement.className += "bg-rose-100 text-rose-800 border-rose-300";
+            } else if (val === 'كاش') {
+                selectElement.className += "bg-amber-100 text-amber-800 border-amber-300";
+            } else {
+                selectElement.className += "bg-white text-slate-700 border-slate-300 font-normal";
+            }
+        }
+        
+        function renderTable(data) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            data.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition-colors';
+                
+                let statusBadge = '';
+                if (row.type === 'exact') {
+                    statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200"><i class="fa-solid fa-check"></i> ${row.status}</span>`;
+                } else if (row.type === 'similar') {
+                    statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-200"><i class="fa-solid fa-triangle-exclamation"></i> ${row.status}</span>`;
+                } else {
+                    statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200"><i class="fa-solid fa-xmark"></i> ${row.status}</span>`;
+                }
+
+                const getVal = (val) => val === undefined || val === null ? '' : val;
+                const currentClass = getVal(row.classification);
+                
+                let selectClassAttr = "w-full min-w-[110px] border rounded p-1.5 text-xs outline-none transition-colors ";
+                if (currentClass === 'حماية') selectClassAttr += "bg-emerald-100 text-emerald-800 border-emerald-300 font-bold";
+                else if (currentClass === 'غير حماية') selectClassAttr += "bg-rose-100 text-rose-800 border-rose-300 font-bold";
+                else if (currentClass === 'كاش') selectClassAttr += "bg-amber-100 text-amber-800 border-amber-300 font-bold";
+                else selectClassAttr += "bg-white text-slate-700 border-slate-300";
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center border-b border-slate-100">
+                        <input type="checkbox" data-index="${index}" ${row.selected ? 'checked' : ''} onchange="toggleRowSelection(${index}, this)" class="row-checkbox w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary cursor-pointer">
+                    </td>
+                    <td class="p-4 text-center text-slate-500 border-b border-slate-100">${index + 1}</td>
+                    <td class="p-4 font-medium border-b border-slate-100 whitespace-normal ${row.type === 'missing' ? 'font-bold text-red-600' : 'text-slate-800'}">${row.col1}</td>
+                    <td class="p-4 font-medium border-b border-slate-100 whitespace-normal ${row.type === 'missing_col2' ? 'font-bold text-red-600' : 'text-slate-600'}">${row.col2}</td>
+                    <td class="p-4 text-xs text-slate-500 border-b border-slate-100 max-w-xs truncate" title="${row.details1}">${row.details1}</td>
+                    <td class="p-4 text-xs text-slate-500 border-b border-slate-100 max-w-xs truncate" title="${row.details2}">${row.details2}</td>
+                    <td class="p-4 border-b border-slate-100">${statusBadge}</td>
+                    <td class="p-2 border-b border-slate-100">
+                        <select id="classification-select-${index}" onchange="updateRowData(${index}, 'classification', this.value); updateSelectColor(this, this.value);" class="${selectClassAttr}">
+                            <option value="" ${currentClass === '' ? 'selected' : ''}>لم يحدد</option>
+                            <option value="حماية" ${currentClass === 'حماية' ? 'selected' : ''}>حماية</option>
+                            <option value="غير حماية" ${currentClass === 'غير حماية' ? 'selected' : ''}>غير حماية</option>
+                            <option value="كاش" ${currentClass === 'كاش' ? 'selected' : ''}>كاش</option>
+                        </select>
+                    </td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'basic_salary', this.value)" value="${getVal(row.basic_salary)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" id="housing-${index}" oninput="updateRowData(${index}, 'allowance_housing', this.value)" value="${getVal(row.allowance_housing)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center bg-slate-50" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'allowance_transport', this.value)" value="${getVal(row.allowance_transport)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center bg-slate-50" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'other_revenues', this.value)" value="${getVal(row.other_revenues)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'salary_adj_plus', this.value)" value="${getVal(row.salary_adj_plus)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'loans', this.value)" value="${getVal(row.loans)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center text-red-600" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'salary_adj_minus', this.value)" value="${getVal(row.salary_adj_minus)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center text-red-600" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'social_security', this.value)" value="${getVal(row.social_security)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center text-red-600" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'social_security_diff', this.value)" value="${getVal(row.social_security_diff)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'total_deductions', this.value)" value="${getVal(row.total_deductions)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center font-semibold text-red-700 bg-red-50" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'employee_social_security', this.value)" value="${getVal(row.employee_social_security)}" class="w-full min-w-[80px] border border-slate-300 rounded p-1.5 text-xs text-center" placeholder="0.00"></td>
+                    <td class="p-2 border-b border-slate-100"><input type="number" step="0.01" oninput="updateRowData(${index}, 'net_salary', this.value)" value="${getVal(row.net_salary)}" class="w-full min-w-[80px] font-bold text-primary border border-slate-300 rounded p-1.5 text-xs bg-blue-50 text-center" placeholder="0.00"></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterTable() {
+            const input = document.getElementById("search-input").value.toLowerCase();
+            const table = document.getElementById("results-table");
+            const tr = table.getElementsByTagName("tr");
+            let hasResults = false;
+
+            for (let i = 1; i < tr.length; i++) {
+                const tdText = tr[i].innerText.toLowerCase();
+                const col1Name = tr[i].getElementsByTagName("td")[2].innerText;
+                const col2Name = tr[i].getElementsByTagName("td")[3].innerText;
+                
+                let matchesSearch = tdText.indexOf(input) > -1;
+                let matchesLetter = true;
+
+                if (activeLetter !== 'all') {
+                    const name = col1Name !== '---' ? col1Name : col2Name;
+                    let firstChar = name.replace(/[^أ-ي]/g, '').charAt(0);
+                    if (['أ', 'إ', 'آ'].includes(firstChar)) firstChar = 'ا';
+                    matchesLetter = (firstChar === activeLetter);
+                }
+
+                if (matchesSearch && matchesLetter) {
+                    tr[i].style.display = "";
+                    hasResults = true;
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+
+            document.getElementById('no-results').classList.toggle('hidden', !hasResults);
+        }
+
+        function exportExcel() {
+            if (comparisonResults.length === 0) return;
+            
+            const exportData = comparisonResults.map((item, index) => ({
+                "الرقم": index + 1,
+                "اسم الموظف (الملف الأول)": item.col1,
+                "اسم الموظف المقابل (الملف الثاني)": item.col2,
+                "البيانات المجلوبة (الملف الأول)": item.details1,
+                "البيانات المجلوبة (الملف الثاني)": item.details2,
+                "حالة التطابق": item.status,
+                "التصنيف": item.classification || '',
+                "الراتب الأساسي": item.basic_salary || '',
+                "علاوة سكن": item.allowance_housing || '',
+                "علاوة نقل": item.allowance_transport || '',
+                "الإيرادات الأخرى": item.other_revenues || '',
+                "تعديل أيام الراتب (+)": item.salary_adj_plus || '',
+                "القروض": item.loans || '',
+                "تعديل أيام الراتب (-)": item.salary_adj_minus || '',
+                "الضمان الإجتماعي": item.social_security || '',
+                "فروقات الضمان الإجتماعي للموظف": item.social_security_diff || '',
+                "مجموع الإقتطاعات": item.total_deductions || '',
+                "الضمان الاجتماعي للموظف": item.employee_social_security || '',
+                "صافي الراتب": item.net_salary || ''
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            if (!worksheet['!views']) worksheet['!views'] = [];
+            worksheet['!views'].push({rightToLeft: true});
+            
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير المطابقة الشامل");
+            XLSX.writeFile(workbook, "تقرير_المقارنة_الشامل.xlsx");
+        }
+
+        function exportPDF() {
+            window.print();
+        }
+
+        function resetApp() {
+            file1Data = [];
+            file2Data = [];
+            file1Headers = [];
+            file2Headers = [];
+            comparisonResults = [];
+            activeLetter = 'all';
+            
+            document.getElementById('excel-file-1').value = '';
+            document.getElementById('excel-file-2').value = '';
+            document.getElementById('file-1-name').innerText = 'اضغط لاختيار ملف Excel الأول';
+            document.getElementById('file-2-name').innerText = 'اضغط لاختيار ملف Excel الثاني';
+            document.getElementById('column-selectors').classList.add('hidden');
+            document.getElementById('file-status').classList.add('hidden');
+            document.getElementById('text-col1').value = '';
+            document.getElementById('text-col2').value = '';
+            document.getElementById('count-text-col1').innerText = '0';
+            document.getElementById('count-text-col2').innerText = '0';
+            document.getElementById('search-input').value = '';
+            document.getElementById('select-all-checkbox').checked = false;
+            
+            document.getElementById('results-section').classList.add('hidden');
+            document.getElementById('input-section').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
